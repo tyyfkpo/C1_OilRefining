@@ -27,6 +27,16 @@ IPythonConsole.drawOptions.addAtomIndices = True
 IPythonConsole.molSize = 300,300
 
 from typing import Dict, Iterator, Type
+try:
+    import flask
+    from flask import Markup
+except ImportError:
+    flask = None
+from rdkit.Chem import rdDepictor
+from rdkit.Chem.Draw import rdMolDraw2D
+from IPython.display import SVG
+from collections import defaultdict
+
 
 
 
@@ -84,7 +94,6 @@ class Molecule:
         else:
             self.__typePONA = 'P'
             
-            
         return self.__typePONA
     
     @property
@@ -96,85 +105,106 @@ class Molecule:
             __numANrings = {'Arings':numArings, 'Nrings':numNrings}       
         return __numANrings
     
-# smiles_OX = 'Cc1ccccc1C'
-# mol_OX = Molecule(smiles = smiles_OX)
-# mol_OX.mol
-# mol_OX.smiles
-# mol_OX.molH
-# mol_OX.typePONA
-
-# smiles_O = 'C=CCC(C)CC'
-# mol_O = Molecule(smiles=smiles_O)
-# mol_O.typePONA
-# mol_O.mol
-# mol_O.smiles
-# mol_O.molH
-
-
-class AromaticMol(Molecule):
-    def __init__(self, mol = None, smiles = None):
-        super().__init__(mol, smiles)
-        # self.__numArings = None
     @property
-    def numArings(self):
-        self.__numArings = Chem.rdMolDescriptors.CalcNumAromaticRings(self.mol)
-        return self.__numArings
+    def mw(self) -> float:
+        self._mw = Chem.rdMolDescriptors.CalcExactMolWt(self.mol)
+        return self._mw
+    
+    @property
+    def formula(self) -> str:
+        self._formula = Chem.rdMolDescriptors.CalcMolFormula(self.mol)
+        return self._formula
+    
+    def ele_comp(self) -> dict:
+        ele_comp_dict =  defaultdict(lambda : 0)
+        for atom in self.molH.GetAtoms():
+            ele_comp_dict[atom.GetSymbol()] += 1  # GetSymbol()
+        return dict(ele_comp_dict)
+    
+    def save_image(self, label = 'atomNote', showindices = True, figsize=(300, 300), filename = 'temp.svg'):
+        for atom in self.mol.GetAtoms():
+            atom.SetProp(label, str(atom.GetIdx()+1))
+        #Draw.MolToFile(self.mol, filename = 'temptest.png')            
+            
+        rdDepictor.Compute2DCoords(self.mol)
+        drawer = rdMolDraw2D.MolDraw2DSVG(*figsize)
+        if not showindices:
+            drawer.drawOptions().addAtomIndices = False
+        drawer.SetFontSize(0.8)
+        drawer.DrawMolecule(self.mol)
+        drawer.FinishDrawing()
+        svg = drawer.GetDrawingText()
+    
+        if flask:
+            return Markup(svg)
+        else:
+            with open(filename, "w") as file:
+                file.write(svg)    
+            #return svg
+    
+    def smf_A(self) -> dict:
+        # eignvalues need to be retained, in case only det can't differentiate some fetaures.
+        pass
+    
+    
+        
+'''  
+smiles_OX = 'Cc1ccccc1C'
+mol_OX = Molecule(smiles = smiles_OX)
+mol_OX.mol
+mol_OX.smiles
+mol_OX.molH
+mol_OX.typePONA
+mol_OX.ele_comp()
+
+smiles_O = 'C=CCC(C)CC'
+mol_O = Molecule(smiles=smiles_O)
+mol_O.typePONA
+mol_O.mol
+mol_O.smiles
+mol_O.molH
+'''
+
+# =============================================================================
+# class AromaticMol(Molecule):
+#     def __init__(self, mol = None, smiles = None):
+#         super().__init__(mol, smiles)
+#         # self.__numArings = None
+#     @property
+#     def numArings(self):
+#         self.__numArings = Chem.rdMolDescriptors.CalcNumAromaticRings(self.mol)
+#         return self.__numArings
+# 
+# 
+# smiles_A = 'C1=CC=C2C=C(C=CC2=C1)C(=S)N'
+# mol_A = AromaticMol(smiles=smiles_A)
+# mol_A.smiles
+# mol_A.typePONA
+# mol_A.numANrings
+# 
+# smiles_A2 = 'CCC(C)CCCC1=CC=C2C=C(C=CC2=C1)C(=S)N'
+# mol_A2 = AromaticMol(smiles=smiles_A2)
+# mol_A2.smiles
+# mol_A2.typePONA
+# mol_A2.numANrings
+# 
+# 
+# 
+# def smiles_draw(smiles_list):
+#     mols_list = []
+# 
+#     for smi in smiles_list:
+#         mol = Chem.MolFromSmiles(smi)
+#         mols_list.append(mol)
+# 
+#     img = Draw.MolsToGridImage(
+#         mols_list,
+#         molsPerRow=4,
+#         subImgSize=(200, 200),
+#         legends=['' for x in mols_list])
+#     return img
+# =============================================================================
 
 
-smiles_A = 'C1=CC=C2C=C(C=CC2=C1)C(=S)N'
-mol_A = AromaticMol(smiles=smiles_A)
-mol_A.smiles
-mol_A.typePONA
-mol_A.numANrings
 
-smiles_A2 = 'CCC(C)CCCC1=CC=C2C=C(C=CC2=C1)C(=S)N'
-mol_A2 = AromaticMol(smiles=smiles_A2)
-mol_A2.smiles
-mol_A2.typePONA
-mol_A2.numANrings
-
-
-
-def smiles_draw(smiles_list):
-    mols_list = []
-
-    for smi in smiles_list:
-        mol = Chem.MolFromSmiles(smi)
-        mols_list.append(mol)
-
-    img = Draw.MolsToGridImage(
-        mols_list,
-        molsPerRow=4,
-        subImgSize=(200, 200),
-        legends=['' for x in mols_list])
-    return img
-
-
-
-
-
-
-class LongNameDict(dict):
-    def longest_key(self):
-        longest = None
-        for key in self:
-            if not longest or len(key) > len(longest):
-                longest = key
-        return longest
-
-longkeys = LongNameDict()
-
-longkeys['hello'] = 1
-longkeys['longest yet'] = 5
-longkeys['hello2'] = 'world'
-
-longkeys.longest_key()
-for key in longkeys:
-    print(key, len(key))
-
-
-longest = None
-for key in longkeys:
-    if not longest or len(key) > len(longest):
-        longest = key
 
